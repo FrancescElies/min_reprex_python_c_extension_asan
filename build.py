@@ -1,4 +1,7 @@
 from subprocess import run
+import sys
+from pathlib import Path
+import os
 
 r"""
 When building a c extension the follwoing commands are called on windows.
@@ -47,14 +50,25 @@ C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Tools\MSVC\1
 
 """
 def main():
-    run("clang -Ic:/Python39/include -c hello.c -o hello.o",
-        check=True, shell=True)
+    in_github = os.environ.get("GITHUB_PATH")
+    py_prefix = Path(sys.exec_prefix) if in_github else Path("c:/Python39")
+    py_include = py_prefix / "include"
+    py_libs = py_prefix / "libs"
 
-    run((" clang --shared "
-        " -Lc:/Python39/libs "
-        " -shared-libsan -fsanitize=address "
-        " hello.o -shared -o hello.pyd "),
-        check=True, shell=True)
+    assert (py_include / "Python.h").exists()
+    cmd = (f"clang -I{py_include} "
+           " -Wno-everything "
+           " -c hello.c -o hello.o ")
+    print(cmd)
+    run(cmd, check=True, shell=True)
+
+    cmd = (" clang --shared "
+           f" -L{py_libs} "
+           " -Wno-everything "
+           " -shared-libsan -fsanitize=address "
+           " hello.o -shared -o hello.pyd ")
+    print(cmd)
+    run(cmd, check=True, shell=True)
 
 
 if __name__ == '__main__':

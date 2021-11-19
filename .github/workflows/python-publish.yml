@@ -1,0 +1,73 @@
+name: Test asan cffi python issue
+
+on: [push]
+
+jobs:
+  run-test:
+    name: "windows lvm${{ matrix.llvm-version }} python${{ matrix.python-version }}"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+        llvm-version:
+          - 13
+          # - 12
+          # - 11
+
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "${{ matrix.python-version }}"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pywin32
+          (Get-Command python).source
+        shell: pwsh
+
+      - name: Install llvm
+        run: |
+
+          Invoke-WebRequest https://github.com/llvm/llvm-project/releases/download/llvmorg-${env:llvmversion}.0.0/LLVM-${env:llvmversion}.0.0-win64.exe -OutFile llvm.exe
+          7z x -ollvm llvm.exe
+
+
+          echo "$(Get-Location)\llvm\bin"                                          | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          echo "$(Get-Location)\llvm\lib\clang\${env:llvmversion}.0.0\lib\windows" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          
+        shell: pwsh
+        env:
+          llvmversion: ${{ matrix.llvm-version }}
+
+      - name: show clang files
+        run: |
+          Invoke-WebRequest https://github.com/sharkdp/fd/releases/download/v8.2.1/fd-v8.2.1-i686-pc-windows-msvc.zip -OutFile fd.zip
+          7z x fd.zip
+
+          ./fd.exe clang_rt.asan_dynamic-x86_64.dll
+          ./fd.exe clang.exe
+
+          Get-Command clang
+          Get-Command clang_rt.asan_dynamic-x86_64.dll
+        shell: pwsh
+        env:
+          llvmversion: ${{ matrix.llvm-version }}
+
+      - name: Test pyd import
+        run: |
+          python test.py
+        shell: pwsh
+        env:
+          CLANG_RT_ASAN_DYNAMIC_PATH: "llvm/lib/clang/${{ matrix.llvm-version }}.0.0/lib/windows/clang_rt.asan_dynamic-x86_64.dll"
+
